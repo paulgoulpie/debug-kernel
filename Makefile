@@ -20,13 +20,13 @@ rootfs: busybox/_install/bin/sh linux/vmlinux
 	  mkdir -p $@/$$(dirname $$file); \
 	  cp $$file $@/$$(dirname $$file)/; \
 	done
-	make -C linux INSTALL_MOD_STRIP=--strip-all INSTALL_MOD_PATH=$${PWD}/$@ modules_install
+	make -C linux INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=$${PWD}/$@ modules_install
 
 rootfs.cpio.gz: rootfs
 	(cd $<; find . | cpio -o -H newc | gzip) > $@
 
 sda.dd: rootfs
-	SIZE=$$(($$(du -s $</ | awk  '{print $$1}') + 5000)); \
+	SIZE=$$(($$(du -s $</ | awk  '{print $$1}') + 3000)); \
 	dd if=/dev/zero of=$@ bs=1024 count=$$SIZE
 	/bin/echo -e "n\n\n\n\n\nw" | /sbin/fdisk $@
 	/sbin/mkfs.ext4 $@ -E offset=$$(( 512 * 2048 )) -d $<
