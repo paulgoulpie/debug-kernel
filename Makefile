@@ -41,6 +41,7 @@ linux/vmlinux-debug: linux-debug-defconfig
 	cp $< linux/.config
 	make -C linux olddefconfig
 	make -C linux -j$$(nproc)
+	make -C linux  scripts_gdb
 	touch linux/vmlinux-debug
 
 linux/vmlinux:
