@@ -28,7 +28,7 @@ rootfs.cpio.gz: rootfs
 sda.dd: rootfs
 	SIZE=$$(($$(du -s $</ | awk  '{print $$1}') + 5000)); \
 	dd if=/dev/zero of=$@ bs=1024 count=$$SIZE
-	( echo "n" ; echo "" ;  echo "" ;  echo "" ;  echo "" ;  echo "w" ) | /sbin/fdisk $@
+	/bin/echo -e "n\n\n\n\n\nw" | /sbin/fdisk $@
 	/sbin/mkfs.ext4 $@ -E offset=$$(( 512 * 2048 )) -d $<
 
 linux/vmlinux:
