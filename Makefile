@@ -5,6 +5,9 @@ run: u-boot/u-boot.rom sda.dd
 run-gdb-linux-debug: linux/vmlinux linux/vmlinux-debug
 	gdb -ex 'target remote :1234' -ex 'hbreak start_kernel'  -ex 'c' $<
 
+run-cpio-debug-ac97: rootfs.cpio.gz  linux/vmlinux-debug
+	qemu-system-x86_64 -s -S -nographic -enable-kvm -kernel linux/arch/x86_64/boot/bzImage -initrd $< -append 'nokaslr console=ttyS0 rdinit=/bin/sh' -device AC97
+
 run-cpio-debug: rootfs.cpio.gz  linux/vmlinux-debug
 	qemu-system-x86_64 -s -S -nographic -enable-kvm -kernel linux/arch/x86_64/boot/bzImage -initrd $< -append 'nokaslr console=ttyS0 rdinit=/bin/sh'
 
