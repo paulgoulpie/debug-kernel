@@ -17,8 +17,19 @@ run-cpio: rootfs.cpio.gz
 run-sda-dd: sda.dd
 	qemu-system-x86_64 -nographic -enable-kvm -kernel linux/arch/x86_64/boot/bzImage -drive file=$<,format=raw,if=ide -append 'console=ttyS0 init=/bin/sh root=/dev/sda1'
 
+run-u-boot: u-boot/u-boot.rom sda.dd
+	qemu-system-i386 -bios $< -nographic -enable-kvm -drive file=sda.dd,format=raw,if=ide
+
+#The symbol table should not be loaded to <relocaddr>, instead it needs
+#to be loaded to <relocaddr + .text - .text.start>.
+run-gdb-u-boot-debug: u-boot/u-boot
+	gdb -ex 'target remote :1234' -ex 'set confirm off' -ex 'symbol-file' -ex 'add-symbol-file $< 0x06F42FC0' $<
+
+run-u-boot-debug: u-boot/u-boot.rom sda.dd
+	qemu-system-i386 -bios $< -nographic -enable-kvm -drive file=sda.dd,format=raw,if=ide -s -S
+
 u-boot/u-boot.rom:
-	make -C u-boot qemu-x86_64_defconfig
+	make -C u-boot qemu-x86_defconfig
 	make -C u-boot -j$$(nproc)
 
 rootfs: busybox/_install/bin/sh linux/vmlinux
