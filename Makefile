@@ -6,7 +6,7 @@ run-gdb-linux-debug: linux/vmlinux linux/vmlinux-debug
 	gdb -ex 'target remote :1234' -ex 'hbreak start_kernel'  -ex 'c' $<
 
 run-cpio-debug-ac97: rootfs.cpio.gz  linux/vmlinux-debug
-	qemu-system-x86_64 -s -S -nographic -enable-kvm -kernel linux/arch/x86_64/boot/bzImage -initrd $< -append 'nokaslr console=ttyS0 rdinit=/bin/sh' -device AC97
+	qemu-system-x86_64 -s -S -nographic -enable-kvm -kernel linux/arch/x86_64/boot/bzImage -initrd $< -append 'nokaslr console=ttyS0' -device AC97
 
 run-cpio-debug: rootfs.cpio.gz  linux/vmlinux-debug
 	qemu-system-x86_64 -s -S -nographic -enable-kvm -kernel linux/arch/x86_64/boot/bzImage -initrd $< -append 'nokaslr console=ttyS0 rdinit=/bin/sh'
@@ -21,8 +21,8 @@ u-boot/u-boot.rom:
 	make -C u-boot qemu-x86_64_defconfig
 	make -C u-boot -j$$(nproc)
 
-rootfs: busybox/_install/bin/sh linux/vmlinux alsa-lib/src/.libs/libasound.so
-	mkdir -p $@/dev $@/tmp $@/proc
+rootfs: busybox/_install/bin/sh linux/vmlinux alsa-lib/src/.libs/libasound.so alsa-utils/aplay/aplay
+	mkdir -p $@/dev $@/tmp $@/proc $@/sys $@/etc/init.d
 	cp -a busybox/_install/* $@/
 	FILES=$$(ldd busybox/_install/bin/busybox | sed -e 's@^[^/]*\([^ ]*\) .*@\1@g' | grep .); \
 	for file in $$FILES ; do \
@@ -30,7 +30,15 @@ rootfs: busybox/_install/bin/sh linux/vmlinux alsa-lib/src/.libs/libasound.so
 	  cp $$file $@/$$(dirname $$file)/; \
 	done
 	make -C linux INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=$${PWD}/$@ modules_install
-	make -C alsa-lib 
+	DESTDIR=$$(pwd)/$@ make -C alsa-lib install
+	DESTDIR=$$(pwd)/$@ make -C alsa-utils install
+	touch $@/etc/init.d/rcS
+	chmod a+x $@/etc/init.d/rcS
+	/bin/echo "mount -t proc none /proc" >> $@/etc/init.d/rcS
+	/bin/echo "mount -t sysfs none /sys" >> $@/etc/init.d/rcS
+	/bin/echo "mount -t devtmpfs none /dev" >> $@/etc/init.d/rcS
+	/bin/echo "modprobe snd-intel8x0" >> $@/etc/init.d/rcS
+	ln -sf /sbin/init $@/init
 
 rootfs.cpio.gz: rootfs
 	(cd $<; find . | cpio -o -H newc | gzip) > $@
@@ -61,21 +69,19 @@ alsa-lib/configure:
 	autoreconf -isf $$(dirname $@)
 
 alsa-lib/Makefile: alsa-lib/configure
-	(cd $$(dirname $<); ./$$(basename $<) --prefix=$$(pwd)/../rootfs/)
+	(cd $$(dirname $<); ./$$(basename $<))
 
-rootfs/lib/pkgconfig/alsa.pc: alsa-lib/Makefile
+alsa-lib/src/.libs/libasound.so: alsa-lib/Makefile
 	make -C $$(dirname $<) -j$$(nproc)
-	make -C $$(dirname $<) install
 
 alsa-utils/configure:
 	autoreconf -isf $$(dirname $@)
 
-alsa-utils/Makefile: alsa-utils/configure rootfs/lib/pkgconfig/alsa.pc
-	(export PKG_CONFIG_PATH=$$(pwd)/rootfs/lib/pkgconfig ; cd $$(dirname $<); ./$$(basename $<) --prefix=$$(pwd)/../rootfs/ --without-systemdsystemunitdir --without-udev-rules-dir)
+alsa-utils/Makefile: alsa-utils/configure
+	(cd $$(dirname $<); ./$$(basename $<))
 
-rootfs/bin/aplay: alsa-utils/Makefile
+alsa-utils/aplay/aplay: alsa-utils/Makefile
 	make -C $$(dirname $<) -j$$(nproc)
-	make -C $$(dirname $<) install
 
 clean:
 	git -C u-boot clean -xdf
