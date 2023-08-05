@@ -21,7 +21,7 @@ u-boot/u-boot.rom:
 	make -C u-boot qemu-x86_64_defconfig
 	make -C u-boot -j$$(nproc)
 
-rootfs: busybox/_install/bin/sh linux/vmlinux
+rootfs: busybox/_install/bin/sh linux/vmlinux alsa-lib/src/.libs/libasound.so
 	mkdir -p $@/dev $@/tmp $@/proc
 	cp -a busybox/_install/* $@/
 	FILES=$$(ldd busybox/_install/bin/busybox | sed -e 's@^[^/]*\([^ ]*\) .*@\1@g' | grep .); \
@@ -30,6 +30,7 @@ rootfs: busybox/_install/bin/sh linux/vmlinux
 	  cp $$file $@/$$(dirname $$file)/; \
 	done
 	make -C linux INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=$${PWD}/$@ modules_install
+	make -C alsa-lib 
 
 rootfs.cpio.gz: rootfs
 	(cd $<; find . | cpio -o -H newc | gzip) > $@
@@ -56,9 +57,31 @@ busybox/_install/bin/sh:
 	make -C busybox -j$$(nproc)
 	make -C busybox install
 
+alsa-lib/configure:
+	autoreconf -isf $$(dirname $@)
+
+alsa-lib/Makefile: alsa-lib/configure
+	(cd $$(dirname $<); ./$$(basename $<) --prefix=$$(pwd)/../rootfs/)
+
+rootfs/lib/pkgconfig/alsa.pc: alsa-lib/Makefile
+	make -C $$(dirname $<) -j$$(nproc)
+	make -C $$(dirname $<) install
+
+alsa-utils/configure:
+	autoreconf -isf $$(dirname $@)
+
+alsa-utils/Makefile: alsa-utils/configure rootfs/lib/pkgconfig/alsa.pc
+	(export PKG_CONFIG_PATH=$$(pwd)/rootfs/lib/pkgconfig ; cd $$(dirname $<); ./$$(basename $<) --prefix=$$(pwd)/../rootfs/ --without-systemdsystemunitdir --without-udev-rules-dir)
+
+rootfs/bin/aplay: alsa-utils/Makefile
+	make -C $$(dirname $<) -j$$(nproc)
+	make -C $$(dirname $<) install
+
 clean:
 	git -C u-boot clean -xdf
 	git -C busybox clean -xdf
 	git -C linux clean -xdf
+	git -C alsa-lib clean -xdf
+	git -C alsa-utils clean -xdf
 	git clean -xdf
 	rm -Rf rootfs sda.dd rootfs.cpio.gz
